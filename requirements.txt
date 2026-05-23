@@ -1,0 +1,4 @@
+telethon>=1.36
+python-telegram-bot>=21.1
+google-genai>=1.0
+python-dotenv>=1.0

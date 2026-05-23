@@ -1,0 +1,10 @@
+venv/
+.env
+data/
+__pycache__/
+*.pyc
+*.pyo
+*.session
+*.session-journal
+.DS_Store
+seen_hashes.json
