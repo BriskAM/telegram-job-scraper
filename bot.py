@@ -60,6 +60,21 @@ def normalize_link(link: str) -> str:
     ))
     return clean
 
+def is_valid_link(link: str) -> bool:
+    """Reject non-application links: WhatsApp redirects, LinkedIn posts, emails."""
+    if not link:
+        return True  # no link is fine
+    if "@" in link and not link.startswith("http"):
+        return False
+    if "whatsapp.com/channel" in link:
+        return False
+    if "linkedin.com/posts/" in link:
+        return False
+    if "linkedin.com/feed/" in link:
+        return False
+    return True
+
+
 def deduplicate_listings_by_link(listings: list[dict]) -> list[dict]:
     seen = {}
     for item in listings:
@@ -91,23 +106,15 @@ def filter_by_batch_year(listings: list[dict]) -> list[dict]:
             filtered.append(item)
             continue
 
-        if "2028" in eligibility and "2027" not in eligibility:
+        has_any_year = bool(re.search(r"\b20\d{2}\b", eligibility))
+
+        if has_any_year:
             continue
 
-        if re.search(r"(?:^|\D)2025(?:$|\D)", eligibility) and "2027" not in eligibility:
-            continue
-        if re.search(r"(?:^|\D)2026(?:$|\D)", eligibility) and "2027" not in eligibility:
-            continue
-
-        if any(w in eligibility for w in ["experienced", "1+ year", "2+ year", "1-2 year", "2 year", "3+ year", "senior", "lead"]):
-            continue
-
-        link = item.get("apply_link", "")
-        if "@" in link and not link.startswith("http"):
-            continue
-
-        company = item.get("company", "").lower()
-        if any(w in company for w in ["& many more", "and many more", "and more", "top companies"]):
+        if any(w in eligibility for w in [
+            "experienced", "1+ year", "2+ year", "1-2 year",
+            "2 year", "3+ year", "senior", "lead",
+        ]):
             continue
 
         filtered.append(item)
@@ -272,6 +279,15 @@ async def main():
 
         if listings:
             listings = filter_by_batch_year(listings)
+            before_link_filter = len(listings)
+            listings = [l for l in listings if is_valid_link(l.get("apply_link", ""))]
+            listings = [
+                l for l in listings
+                if not any(w in (l.get("company", "")).lower()
+                          for w in ["& many more", "and many more", "and more", "top companies"])
+            ]
+            if len(listings) < before_link_filter:
+                logger.info(f"Link filter: {len(listings)} kept, {before_link_filter - len(listings)} removed")
             listings = deduplicate_listings_by_link(listings)
             (data_dir / "debug_final.json").write_text(
                 json.dumps(listings, indent=2, ensure_ascii=False)
